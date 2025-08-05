@@ -1,0 +1,61 @@
+# CONFIG
+$LogFiles = @(
+    "D:\Logs\Folder1\ping.log",
+    "D:\Logs\Folder2\ping.log",
+    "D:\Logs\Folder3\ping.log"
+)
+$CheckInterval = 2  # seconds
+$InactivityLimit = 600 # seconds (10 min)
+
+# Track last update
+$LastActivity = Get-Date
+
+function Get-LastLines {
+    param($Path, $Lines)
+    if (Test-Path $Path) {
+        return (Get-Content $Path -Tail $Lines -ErrorAction SilentlyContinue)
+    }
+    else {
+        return @("[No log file found]")
+    }
+}
+
+while ($true) {
+    Clear-Host
+    $Now = Get-Date
+    $Inactivity = ($Now - $LastActivity).TotalSeconds
+
+    # Status
+    if ($Inactivity -gt $InactivityLimit) {
+        $Status = "⚠ No log activity > 10 min"
+        $StatusColor = "Red"
+    } else {
+        $Status = "✅ Active"
+        $StatusColor = "Green"
+    }
+
+    # Top Bar
+    Write-Host "⏰ Dashboard - $($Now.ToString('yyyy-MM-dd HH:mm:ss')) - " -NoNewline
+    Write-Host $Status -ForegroundColor $StatusColor
+    Write-Host ("=" * 70)
+
+    # Log Panels
+    foreach ($Log in $LogFiles) {
+        $FolderName = Split-Path (Split-Path $Log -Parent) -Leaf
+        Write-Host "📄 $FolderName" -ForegroundColor Cyan
+        Write-Host ("-" * 30)
+        $Lines = Get-LastLines -Path $Log -Lines 5
+        foreach ($Line in $Lines) {
+            if ($Line -match "Reply") { Write-Host $Line -ForegroundColor Green }
+            elseif ($Line -match "Request timed out") { Write-Host $Line -ForegroundColor Yellow }
+            elseif ($Line -match "unreachable") { Write-Host $Line -ForegroundColor Red }
+            else { Write-Host $Line }
+        }
+        Write-Host ""
+        if ($Lines.Count -gt 0 -and $Lines[0] -ne "[No log file found]") {
+            $LastActivity = Get-Date
+        }
+    }
+
+    Start-Sleep -Seconds $CheckInterval
+}
